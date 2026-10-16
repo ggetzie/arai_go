@@ -10,6 +10,8 @@ The site shows 25 GPT-2 generated AskReddit titles a day, taken from the `main_g
 arai serve   [-env file]   run the web server (default 127.0.0.1:8007)
 arai select  [-env file]   choose today's 25 questions (systemd timer, 00:01 UTC)
 arai migrate [-env file]   apply the Go port's schema additions (idempotent)
+arai post reddit|x [-env file] [-dry-run]
+                           post the top-voted question not yet posted there (timers, every 6 h)
 arai hashpw                print a bcrypt hash for ARAI_ADMIN_PASSWORD_HASH
 ```
 
@@ -82,9 +84,10 @@ The site went live on 2026-10-16. It replaced the Django/gunicorn/supervisor set
 | `/usr/local/src/arai_go/logs/` | nginx access and error logs, rotated by `/etc/logrotate.d/arai_go` |
 | `/etc/systemd/system/askreddit_but_ai.service` | web server on 127.0.0.1:8007 (`deploy/`) |
 | `/etc/systemd/system/askreddit_but_ai-select.{service,timer}` | daily selection at 00:01 UTC (`deploy/`) |
+| `/etc/systemd/system/askreddit_but_ai-post@.{service,timer}` | posting, enabled per platform as `askreddit_but_ai-post@reddit.timer` / `@x.timer` (`deploy/`) |
 | `/etc/nginx/sites-available/askreddit_but_ai` | TLS and proxy (`deploy/nginx-askreddit_but_ai.conf`), symlinked from `sites-enabled` |
 
-Logs: `journalctl -u askreddit_but_ai`, `journalctl -u askreddit_but_ai-select`.
+Logs: `journalctl -u askreddit_but_ai`, `journalctl -u askreddit_but_ai-select`, `journalctl -u 'askreddit_but_ai-post@*'`.
 
 ### Deploying a new version
 
@@ -120,6 +123,31 @@ The Python app is still in `/usr/local/src/askreddit_but_ai`. Its old supervisor
 
 The database works with both versions. Go only adds an index and the `arai_vote_state` table.
 
-## Not yet ported
+## Posting to Reddit and X
 
-Posting the top-voted question to Reddit and X (`manage.py tweet`) is planned as a follow-up.
+`arai post reddit` and `arai post x` each post the question at the head of that platform's own queue and then mark it posted. The queue holds questions with more than 0 votes that were shown before today and haven't been posted to that platform yet. It is ordered by most votes, then longest-waiting. The systemd timers run each command at 01, 07, 13 and 19 UTC. `-dry-run` shows the next question without posting.
+
+The Django version posted only one question per run. It always posted to Reddit, but it marked the question only when the tweet worked. Once X started failing in February 2026, the same question went to Reddit every 6 hours. Now:
+- Each platform has its own flag: `submitted`/`reddit_id` for Reddit, `tweeted` for X.
+- A question is marked only after its own post succeeds.
+- A per-platform lock keeps overlapping runs from posting the same question twice.
+- Reddit rejections that come back as HTTP 200 with an `errors` list now count as failures.
+
+If a question keeps failing (for example, a title Reddit refuses), it blocks that queue. Mark it posted in the admin to skip it.
+
+### Reddit
+
+- **Credentials:** the old "script" app (`arai_Reddit_*` keys) logs in with the password grant.
+- **Public API shutdown** (announced 2026-09-30):
+  - New access requests close 2026-10-31.
+  - Apps that haven't registered at <https://developers.reddit.com/app-registration> lose access from 2027-01-12.
+  - All public access ends in March 2027.
+- **Before 2027-01-12:** register the existing app so this keeps working until March 2027. The migration bounty for apps that move to Devvit closes 2026-11-30.
+- **The long-term plan is a Devvit app installed on r/AskRedditButAI.** A Devvit scheduler task (`devvit.json` `scheduler.tasks` with a cron) would:
+  1. fetch the next question from an authenticated askredditbut.ai endpoint (the domain must be allow-listed under `permissions.http.domains`);
+  2. post it with the Devvit Reddit API;
+  3. report the post id back.
+
+### X
+
+X has had no free API tier since its 2026 move to pay-per-use billing. Posts are prepaid credits at about $0.015 each, or $0.20 if the post contains a URL. At 4 posts a day that's roughly $2 a month. `arai post x` signs requests with OAuth 1.0a (`arai_Twitter_*` keys, Read and Write permission). It reports HTTP 402 as "out of credits". X's "duplicate content" refusal is treated as already posted. Enable `askreddit_but_ai-post@x.timer` once billing is set up in the X Developer Console.

@@ -3,6 +3,8 @@
 //	arai serve   [-env file]   run the web server
 //	arai select  [-env file]   choose today's questions (run daily from cron)
 //	arai migrate [-env file]   apply the Go port's schema additions
+//	arai post reddit|x [-env file] [-dry-run]
+//	                           post the top-voted question not yet posted there
 //	arai hashpw                print a bcrypt hash for ARAI_ADMIN_PASSWORD_HASH
 package main
 
@@ -25,6 +27,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/ggetzie/arai_go/internal/config"
+	"github.com/ggetzie/arai_go/internal/post"
 	"github.com/ggetzie/arai_go/internal/store"
 	"github.com/ggetzie/arai_go/internal/web"
 )
@@ -35,6 +38,7 @@ commands:
   serve     run the web server
   select    choose today's questions (run daily from cron)
   migrate   apply the Go port's schema additions
+  post      post the next upvoted question: arai post reddit|x [-env file] [-dry-run]
   hashpw    print a bcrypt hash for ARAI_ADMIN_PASSWORD_HASH
 `
 
@@ -60,6 +64,18 @@ func main() {
 			log.Info("migrations applied")
 			return nil
 		})
+	case "post":
+		if len(args) == 0 || (args[0] != string(store.Reddit) && args[0] != string(store.X)) {
+			fmt.Fprintf(os.Stderr, "usage: arai post reddit|x [-env file] [-dry-run]\n")
+			os.Exit(2)
+		}
+		platform := store.Platform(args[0])
+		var dryRun bool
+		err = withStore(args[1:], log, func(ctx context.Context, _ *config.Config, st *store.Store, log *slog.Logger) error {
+			return postNext(ctx, st, platform, dryRun, log)
+		}, func(fs *flag.FlagSet) {
+			fs.BoolVar(&dryRun, "dry-run", false, "show the question that would be posted, without posting")
+		})
 	case "hashpw":
 		err = hashPassword()
 	case "-h", "-help", "--help", "help":
@@ -76,10 +92,14 @@ func main() {
 
 type storeCmd func(ctx context.Context, cfg *config.Config, st *store.Store, log *slog.Logger) error
 
-// withStore parses the common -env flag, loads config and opens the database.
-func withStore(args []string, log *slog.Logger, run storeCmd) error {
+// withStore parses the common -env flag (plus any flags added by extraFlags),
+// loads config and opens the database.
+func withStore(args []string, log *slog.Logger, run storeCmd, extraFlags ...func(*flag.FlagSet)) error {
 	fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	envFile := fs.String("env", "", "load environment variables from this KEY=VALUE file")
+	for _, f := range extraFlags {
+		f(fs)
+	}
 	fs.Parse(args)
 	if *envFile != "" {
 		if err := config.LoadEnvFile(*envFile); err != nil {
@@ -201,5 +221,68 @@ func hashPassword() error {
 		return err
 	}
 	fmt.Println(string(hash))
+	return nil
+}
+
+// postNext posts the top-voted question that hasn't been posted to platform
+// yet and marks it posted. Having nothing to post is not an error.
+func postNext(ctx context.Context, st *store.Store, platform store.Platform, dryRun bool, log *slog.Logger) error {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	if dryRun {
+		q, err := st.NextToPost(ctx, platform, today)
+		if errors.Is(err, store.ErrNothingToPost) {
+			log.Info("nothing to post", "platform", platform)
+			return nil
+		} else if err != nil {
+			return err
+		}
+		log.Info("would post", "platform", platform, "question_id", q.ID, "votes", q.Votes, "displayed", q.Displayed.Format(time.DateOnly))
+		fmt.Println(q.Text)
+		return nil
+	}
+
+	var publish func(context.Context, string) (string, error)
+	switch platform {
+	case store.Reddit:
+		r, err := config.Reddit()
+		if err != nil {
+			return err
+		}
+		publish = r.Submit
+	case store.X:
+		x, err := config.X()
+		if err != nil {
+			return err
+		}
+		publish = func(ctx context.Context, text string) (string, error) {
+			id, err := x.Post(ctx, text)
+			if errors.Is(err, post.ErrDuplicate) {
+				// Already on the account, so count it as posted rather than
+				// retrying it forever.
+				log.Warn("x reports a duplicate; marking the question as tweeted", "err", err)
+				return "", nil
+			}
+			return id, err
+		}
+	}
+
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	q, externalID, err := st.PostNext(callCtx, platform, today, func(q store.Question) (string, error) {
+		return publish(callCtx, q.Text)
+	})
+	switch {
+	case errors.Is(err, store.ErrNothingToPost):
+		log.Info("nothing to post", "platform", platform)
+		return nil
+	case err != nil:
+		if q.ID != 0 {
+			return fmt.Errorf("question %d: %w", q.ID, err)
+		}
+		return err
+	}
+	log.Info("posted", "platform", platform, "question_id", q.ID, "votes", q.Votes, "post_id", externalID, "text", q.Text)
 	return nil
 }

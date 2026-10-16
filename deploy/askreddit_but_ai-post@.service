@@ -1,0 +1,19 @@
+[Unit]
+Description=Post the top-voted askredditbut.ai question to %i
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=arai_user
+Group=webapps
+WorkingDirectory=/usr/local/src/arai_go
+EnvironmentFile=/usr/local/src/arai_go/arai.env
+ExecStart=/usr/local/src/arai_go/arai post %i
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

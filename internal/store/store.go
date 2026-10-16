@@ -140,11 +140,12 @@ func (s *Store) CountOnDeck(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// OnDeck returns a page of upvoted, untweeted questions, most votes first.
+// OnDeck returns a page of upvoted, untweeted questions in the order they
+// will be tweeted.
 func (s *Store) OnDeck(ctx context.Context, limit, offset int) ([]Question, error) {
 	return collectQuestions(s.pool.Query(ctx,
 		`SELECT `+questionCols+` FROM main_generatedq WHERE `+onDeckWhere+`
-		 ORDER BY votes DESC, displayed DESC, id LIMIT $1 OFFSET $2`, limit, offset))
+		 ORDER BY `+postQueueOrder+` LIMIT $1 OFFSET $2`, limit, offset))
 }
 
 // GetQuestion returns one question by id.

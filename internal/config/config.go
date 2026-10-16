@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/ggetzie/arai_go/internal/post"
 )
 
 // Config holds runtime settings for all subcommands.
@@ -97,4 +99,46 @@ func (c *Config) ValidateServe() error {
 		return errors.New("ARAI_ADMIN_USER and ARAI_ADMIN_PASSWORD_HASH must be set (see arai hashpw)")
 	}
 	return nil
+}
+
+// Reddit returns the Reddit poster configured by the Django .env keys
+// arai_Reddit_id, arai_Reddit_secret, arai_Reddit_username and
+// arai_Reddit_password. ARAI_REDDIT_SUBREDDIT (default AskRedditButAI) and
+// ARAI_REDDIT_USER_AGENT are optional.
+func Reddit() (*post.Reddit, error) {
+	r := &post.Reddit{
+		ClientID:  os.Getenv("arai_Reddit_id"),
+		Secret:    os.Getenv("arai_Reddit_secret"),
+		Username:  os.Getenv("arai_Reddit_username"),
+		Password:  os.Getenv("arai_Reddit_password"),
+		Subreddit: os.Getenv("ARAI_REDDIT_SUBREDDIT"),
+		UserAgent: os.Getenv("ARAI_REDDIT_USER_AGENT"),
+	}
+	if r.ClientID == "" || r.Secret == "" || r.Username == "" || r.Password == "" {
+		return nil, errors.New("set arai_Reddit_id, arai_Reddit_secret, arai_Reddit_username and arai_Reddit_password")
+	}
+	if r.Subreddit == "" {
+		r.Subreddit = "AskRedditButAI"
+	}
+	if r.UserAgent == "" {
+		// Reddit's requested format: <platform>:<app id>:<version> (by /u/<username>)
+		r.UserAgent = "linux:askredditbut.ai:v2.0 (by /u/" + r.Username + ")"
+	}
+	return r, nil
+}
+
+// X returns the X poster configured by the Django .env keys
+// arai_Twitter_API_key, arai_Twitter_API_secret_key,
+// arai_Twitter_access_token and arai_Twitter_access_token_secret.
+func X() (*post.X, error) {
+	x := &post.X{
+		APIKey:       os.Getenv("arai_Twitter_API_key"),
+		APISecret:    os.Getenv("arai_Twitter_API_secret_key"),
+		AccessToken:  os.Getenv("arai_Twitter_access_token"),
+		AccessSecret: os.Getenv("arai_Twitter_access_token_secret"),
+	}
+	if x.APIKey == "" || x.APISecret == "" || x.AccessToken == "" || x.AccessSecret == "" {
+		return nil, errors.New("set arai_Twitter_API_key, arai_Twitter_API_secret_key, arai_Twitter_access_token and arai_Twitter_access_token_secret")
+	}
+	return x, nil
 }

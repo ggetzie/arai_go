@@ -1,0 +1,11 @@
+[Unit]
+Description=Post the top-voted askredditbut.ai question to %i every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 01,07,13,19:00:00 UTC
+# Spread the Reddit and X runs apart a little.
+RandomizedDelaySec=5min
+# No Persistent=: a missed slot is skipped rather than posted late at boot.
+
+[Install]
+WantedBy=timers.target
