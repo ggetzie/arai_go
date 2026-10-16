@@ -1,6 +1,6 @@
 {{define "content"}}
 <a href="https://reddit.com/r/askredditbutai">
-  <img class="img-fluid mt-1 mb-5" src="/static/images/Max_banner_crop_narrow_integrated.png" alt="AskReddit But AI" />
+  <img class="img-fluid mt-1 mb-5" src="{{static "images/Max_banner_crop_narrow_integrated.png"}}" alt="AskReddit But AI" />
 </a>
 
 <div id="intro" class="mb-5">{{.Intro}}</div>
@@ -38,5 +38,5 @@
 
 {{define "extra_js"}}
 <script id="vote-states" type="application/json">{{.VoteStates}}</script>
-<script src="/static/js/project.js"></script>
+<script src="{{static "js/project.js"}}"></script>
 {{end}}

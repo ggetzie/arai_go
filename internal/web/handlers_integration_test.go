@@ -97,7 +97,7 @@ func TestPublicPages(t *testing.T) {
 		status int
 		want   []string
 	}{
-		{"/", 200, []string{"Today&#39;s &lt;b&gt;question&lt;/b&gt;?", `<div id="intro" class="mb-5"><p>hi</p></div>`, `id="vote-states" type="application/json">{}`}},
+		{"/", 200, []string{"Today&#39;s &lt;b&gt;question&lt;/b&gt;?", `<div id="intro" class="mb-5"><p>hi</p></div>`, `id="vote-states" type="application/json">{}`, `src="/static/js/project.js?v=`, `href="/static/css/project.min.css?v=`}},
 		{"/20201001", 200, []string{"Old question with votes"}},
 		{"/20201002", 200, []string{"No questions found for this date"}},
 		{"/2020100", 404, []string{"Page not found"}},

@@ -32,12 +32,13 @@ const contentSecurityPolicy = "default-src 'self'; " +
 	"frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 type Server struct {
-	cfg   *config.Config
-	store *store.Store
-	log   *slog.Logger
-	now   func() time.Time
-	pages map[string]*template.Template
-	login *loginLimiter
+	cfg    *config.Config
+	store  *store.Store
+	log    *slog.Logger
+	now    func() time.Time
+	pages  map[string]*template.Template
+	static *staticAssets
+	login  *loginLimiter
 }
 
 func New(cfg *config.Config, st *store.Store, log *slog.Logger) (*Server, error) {
@@ -49,7 +50,15 @@ func New(cfg *config.Config, st *store.Store, log *slog.Logger) (*Server, error)
 		pages: map[string]*template.Template{},
 		login: newLoginLimiter(),
 	}
+	staticFS, err := fs.Sub(assets, "static")
+	if err != nil {
+		return nil, err
+	}
+	if s.static, err = newStaticAssets(staticFS); err != nil {
+		return nil, fmt.Errorf("load static files: %w", err)
+	}
 	funcs := template.FuncMap{
+		"static":    s.static.URL,
 		"intcomma":  intcomma,
 		"ymd":       func(t time.Time) string { return t.Format("20060102") },
 		"isodate":   func(t time.Time) string { return t.Format("2006-01-02") },
@@ -93,11 +102,9 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes(mux *http.ServeMux) {
-	static, _ := fs.Sub(assets, "static")
-	mux.Handle("GET /static/", cacheFor(7*24*time.Hour, http.StripPrefix("/static/", http.FileServerFS(static))))
+	mux.Handle("GET /static/", s.static)
 	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=604800")
-		http.ServeFileFS(w, r, static, "images/favicons/favicon.ico")
+		s.static.serve(w, r, "images/favicons/favicon.ico")
 	})
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -169,14 +176,6 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Fprintln(w, "ok")
-}
-
-func cacheFor(d time.Duration, h http.Handler) http.Handler {
-	v := "public, max-age=" + strconv.Itoa(int(d.Seconds()))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", v)
-		h.ServeHTTP(w, r)
-	})
 }
 
 func (s *Server) securityHeaders(h http.Handler) http.Handler {

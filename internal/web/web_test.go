@@ -1,8 +1,13 @@
 package web
 
 import (
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,5 +156,61 @@ func TestRenderMarkdown(t *testing.T) {
 	want := "<p>Inspired by:<br />\n-An <em><a href=\"http://example.com\">artwork</a></em></p>"
 	if got != want {
 		t.Errorf("renderMarkdown = %q, want %q", got, want)
+	}
+}
+
+func TestStaticCaching(t *testing.T) {
+	s, err := New(&config.Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := s.Handler()
+	get := func(target string, hdr map[string]string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", target, nil)
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	versioned, err := s.static.URL("js/project.js")
+	if err != nil || !strings.HasPrefix(versioned, "/static/js/project.js?v=") {
+		t.Fatalf("URL = %q, %v", versioned, err)
+	}
+	if _, err := s.static.URL("js/missing.js"); err == nil {
+		t.Error("unknown static file accepted")
+	}
+
+	rec := get(versioned, nil)
+	if rec.Code != 200 || rec.Header().Get("Cache-Control") != cacheImmutable || !strings.Contains(rec.Body.String(), "loadVoteState") {
+		t.Errorf("versioned: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	etag := rec.Header().Get("ETag")
+
+	for _, target := range []string{"/static/js/project.js", "/static/js/project.js?v=stale"} {
+		rec = get(target, nil)
+		if rec.Code != 200 || rec.Header().Get("Cache-Control") != cacheRevalidate || rec.Header().Get("ETag") != etag {
+			t.Errorf("%s: %d %q etag %q", target, rec.Code, rec.Header().Get("Cache-Control"), rec.Header().Get("ETag"))
+		}
+	}
+	if rec = get("/static/js/project.js", map[string]string{"If-None-Match": etag}); rec.Code != http.StatusNotModified {
+		t.Errorf("revalidation: %d, want 304", rec.Code)
+	}
+	if rec = get("/favicon.ico", nil); rec.Code != 200 || rec.Header().Get("ETag") == "" {
+		t.Errorf("favicon: %d etag %q", rec.Code, rec.Header().Get("ETag"))
+	}
+	for _, target := range []string{"/static/images/", "/static/", "/static/js/missing.js"} {
+		if rec = get(target, nil); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: %d, want 404", target, rec.Code)
+		}
+	}
+	// The mux cleans ".." paths with a redirect; the file is never served.
+	if rec = get("/static/../go.mod", nil); rec.Code == http.StatusOK {
+		t.Errorf("path traversal served a file")
 	}
 }
