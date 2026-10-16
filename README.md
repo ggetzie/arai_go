@@ -71,37 +71,54 @@ To run against real data:
 
 ## Deployment (kotsf.com)
 
-Build on a dev machine and copy over. The server has no Go toolchain.
+The site went live on 2026-10-16. It replaced the Django/gunicorn/supervisor setup in `/usr/local/src/askreddit_but_ai`.
+
+### Server layout
+
+| Path | Contents |
+|---|---|
+| `/usr/local/src/arai_go/arai` | the binary (root, 0755) |
+| `/usr/local/src/arai_go/arai.env` | settings (arai_user:webapps, 0600). See `deploy/arai.env.example` |
+| `/usr/local/src/arai_go/logs/` | nginx access and error logs, rotated by `/etc/logrotate.d/arai_go` |
+| `/etc/systemd/system/askreddit_but_ai.service` | web server on 127.0.0.1:8007 (`deploy/`) |
+| `/etc/systemd/system/askreddit_but_ai-select.{service,timer}` | daily selection at 00:01 UTC (`deploy/`) |
+| `/etc/nginx/sites-available/askreddit_but_ai` | TLS and proxy (`deploy/nginx-askreddit_but_ai.conf`), symlinked from `sites-enabled` |
+
+Logs: `journalctl -u askreddit_but_ai`, `journalctl -u askreddit_but_ai-select`.
+
+### Deploying a new version
+
+Build on a dev machine and copy it over. The server has no Go toolchain.
 
 ```sh
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o arai ./cmd/arai
 scp arai ubuntu@kotsf.com:/tmp/arai
+ssh ubuntu@kotsf.com 'sudo install -o root -g root -m 0755 /tmp/arai /usr/local/src/arai_go/arai && rm /tmp/arai \
+  && sudo -u arai_user /usr/local/src/arai_go/arai migrate -env /usr/local/src/arai_go/arai.env \
+  && sudo systemctl restart askreddit_but_ai'
 ```
 
-On the server:
+To try a build before it replaces the live one, run it on another port:
+- `sudo systemd-run --unit=arai-trial --uid=arai_user --gid=webapps -p EnvironmentFile=/usr/local/src/arai_go/arai.env /usr/bin/env ARAI_ADDR=127.0.0.1:8017 /path/to/new/arai serve`
+- Set the address through `env`, because systemd applies `EnvironmentFile=` after `--setenv`.
+- Check it through `ssh -L 8017:127.0.0.1:8017`, then `sudo systemctl stop arai-trial`.
 
-1. **Install:**
-   - `sudo install -o root -g root -m 0755 /tmp/arai /usr/local/src/askreddit_but_ai/go/arai`
-   - Create `go/arai.env` from `deploy/arai.env.example`, owned by `arai_user` with mode `0600`.
-2. **Schema:** `sudo -u arai_user go/arai migrate -env go/arai.env`
-3. **Trial on port 8017**, with Django still serving on 8007:
-   - `sudo systemd-run --unit=arai-trial --uid=arai_user --gid=webapps -p EnvironmentFile=/usr/local/src/askreddit_but_ai/go/arai.env /usr/bin/env ARAI_ADDR=127.0.0.1:8017 /usr/local/src/askreddit_but_ai/go/arai serve`
-   - Set the address with `env`: systemd applies `EnvironmentFile=` after `--setenv`, so `ARAI_ADDR=127.0.0.1:8007` from the file would win.
-   - Check it through `ssh -L 8017:127.0.0.1:8017`, then `sudo systemctl stop arai-trial`.
-4. **Cutover:**
-   - Copy `deploy/askreddit_but_ai.service`, `askreddit_but_ai-select.service` and `askreddit_but_ai-select.timer` to `/etc/systemd/system/`.
-   - `sudo supervisorctl stop askreddit_but_ai`
-   - `sudo systemctl daemon-reload && sudo systemctl enable --now askreddit_but_ai askreddit_but_ai-select.timer`
-   - Back up the supervisor config with `sudo cp /etc/supervisor/conf.d/super_askreddit_but_ai.conf /usr/local/src/askreddit_but_ai/srv/production/super_askreddit_but_ai.conf.bak`. Then remove it with `sudo rm /etc/supervisor/conf.d/super_askreddit_but_ai.conf && sudo supervisorctl reread && sudo supervisorctl update`.
-   - Replace the nginx site with `deploy/nginx-askreddit_but_ai.conf`, which drops the `/static/` alias. Then `sudo nginx -t && sudo systemctl reload nginx`.
-   - Remove the `select_questions.sh` line from the `ubuntu` crontab. The systemd timer replaces it.
-5. **Logs:** `journalctl -u askreddit_but_ai` and `journalctl -u askreddit_but_ai-select`
-6. **Rollback:**
-   - `sudo systemctl disable --now askreddit_but_ai askreddit_but_ai-select.timer`
-   - Restore the supervisor conf and run `sudo supervisorctl update`.
-   - Restore the old nginx site and crontab line.
+To change the admin password, run this from a real terminal (not a `!` command):
 
-   The database stays compatible with Django throughout.
+```sh
+ssh -t ubuntu@kotsf.com 'H=$(/usr/local/src/arai_go/arai hashpw) && sudo sed -i "s|^ARAI_ADMIN_PASSWORD_HASH=.*|ARAI_ADMIN_PASSWORD_HASH=$H|" /usr/local/src/arai_go/arai.env && sudo systemctl restart askreddit_but_ai'
+```
+
+### Rolling back to Django
+
+The Python app is still in `/usr/local/src/askreddit_but_ai`. Its old supervisor config, crontab and nginx symlink target are saved in `srv/production/pre-go-backup-20261016/`.
+
+1. `sudo systemctl disable --now askreddit_but_ai askreddit_but_ai-select.timer`
+2. Copy `super_askreddit_but_ai.conf` back to `/etc/supervisor/conf.d/` and run `sudo supervisorctl update`.
+3. Point `/etc/nginx/sites-enabled/askreddit_but_ai` back at the saved target and reload nginx.
+4. Restore the crontab from `ubuntu.crontab`.
+
+The database works with both versions. Go only adds an index and the `arai_vote_state` table.
 
 ## Not yet ported
 

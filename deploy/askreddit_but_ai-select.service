@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=oneshot
 User=arai_user
 Group=webapps
-WorkingDirectory=/usr/local/src/askreddit_but_ai/go
-EnvironmentFile=/usr/local/src/askreddit_but_ai/go/arai.env
-ExecStart=/usr/local/src/askreddit_but_ai/go/arai select
+WorkingDirectory=/usr/local/src/arai_go
+EnvironmentFile=/usr/local/src/arai_go/arai.env
+ExecStart=/usr/local/src/arai_go/arai select
 
 NoNewPrivileges=true
 ProtectSystem=strict
