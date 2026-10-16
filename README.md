@@ -85,7 +85,8 @@ On the server:
    - Create `go/arai.env` from `deploy/arai.env.example`, owned by `arai_user` with mode `0600`.
 2. **Schema:** `sudo -u arai_user go/arai migrate -env go/arai.env`
 3. **Trial on port 8017**, with Django still serving on 8007:
-   - `sudo systemd-run --unit=arai-trial --uid=arai_user --gid=webapps -p EnvironmentFile=/usr/local/src/askreddit_but_ai/go/arai.env --setenv=ARAI_ADDR=127.0.0.1:8017 /usr/local/src/askreddit_but_ai/go/arai serve`
+   - `sudo systemd-run --unit=arai-trial --uid=arai_user --gid=webapps -p EnvironmentFile=/usr/local/src/askreddit_but_ai/go/arai.env /usr/bin/env ARAI_ADDR=127.0.0.1:8017 /usr/local/src/askreddit_but_ai/go/arai serve`
+   - Set the address with `env`: systemd applies `EnvironmentFile=` after `--setenv`, so `ARAI_ADDR=127.0.0.1:8007` from the file would win.
    - Check it through `ssh -L 8017:127.0.0.1:8017`, then `sudo systemctl stop arai-trial`.
 4. **Cutover:**
    - Copy `deploy/askreddit_but_ai.service`, `askreddit_but_ai-select.service` and `askreddit_but_ai-select.timer` to `/etc/systemd/system/`.
