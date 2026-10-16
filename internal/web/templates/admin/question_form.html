@@ -1,0 +1,36 @@
+{{define "content"}}
+<p><a href="/admin/questions/">&laquo; All questions</a></p>
+<h2 class="mb-3">Edit question {{.Q.ID}}</h2>
+{{with .Error}}<div class="alert alert-danger">{{.}}</div>{{end}}
+<form method="post" action="/admin/questions/{{.Q.ID}}" style="max-width: 640px;">
+  <div class="form-group">
+    <label for="text">Text</label>
+    <textarea class="form-control" id="text" name="text" rows="3" maxlength="280" required>{{.Q.Text}}</textarea>
+    <small class="form-text text-muted">Slug: {{.Q.Slug}} (recomputed from the text on save)</small>
+  </div>
+  <div class="form-row">
+    <div class="form-group col-md-6">
+      <label for="displayed">Last displayed</label>
+      <input class="form-control" id="displayed" name="displayed" type="date" value="{{isodate .Q.Displayed}}" required>
+      <small class="form-text text-muted">1970-01-01 means never displayed.</small>
+    </div>
+    <div class="form-group col-md-6">
+      <label for="votes">Votes</label>
+      <input class="form-control" id="votes" name="votes" type="number" value="{{.Q.Votes}}" required>
+    </div>
+  </div>
+  <div class="form-group form-check">
+    <input class="form-check-input" type="checkbox" id="tweeted" name="tweeted"{{if .Q.Tweeted}} checked{{end}}>
+    <label class="form-check-label" for="tweeted">Tweeted{{if .Q.Tweeted}} ({{.Q.TweetTime.UTC.Format "2006-01-02 15:04 MST"}}){{end}}</label>
+  </div>
+  <div class="form-group form-check">
+    <input class="form-check-input" type="checkbox" id="submitted" name="submitted"{{if .Q.Submitted}} checked{{end}}>
+    <label class="form-check-label" for="submitted">Submitted to Reddit{{if .Q.Submitted}} ({{.Q.SubmitTime.UTC.Format "2006-01-02 15:04 MST"}}){{end}}</label>
+  </div>
+  <div class="form-group">
+    <label for="reddit_id">Reddit post id</label>
+    <input class="form-control" id="reddit_id" name="reddit_id" value="{{.Q.RedditID}}" maxlength="30" style="max-width: 200px;">
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+</form>
+{{end}}

@@ -1,0 +1,38 @@
+{{define "content"}}
+<h2 class="mb-3">Questions</h2>
+<form method="get" action="/admin/questions/" class="form-inline mb-3">
+  <input class="form-control mr-2 mb-2" name="q" value="{{.Query.Get "q"}}" placeholder="Search text">
+  <input class="form-control mr-2 mb-2" name="displayed" type="date" value="{{.Query.Get "displayed"}}" aria-label="Displayed on">
+  <select class="form-control mr-2 mb-2" name="tweeted" aria-label="Tweeted">
+    {{$t := .Query.Get "tweeted"}}
+    <option value="">Tweeted: any</option>
+    <option value="yes"{{if eq $t "yes"}} selected{{end}}>Tweeted: yes</option>
+    <option value="no"{{if eq $t "no"}} selected{{end}}>Tweeted: no</option>
+  </select>
+  <select class="form-control mr-2 mb-2" name="submitted" aria-label="Submitted to Reddit">
+    {{$s := .Query.Get "submitted"}}
+    <option value="">Reddit: any</option>
+    <option value="yes"{{if eq $s "yes"}} selected{{end}}>Reddit: yes</option>
+    <option value="no"{{if eq $s "no"}} selected{{end}}>Reddit: no</option>
+  </select>
+  <button type="submit" class="btn btn-secondary mb-2">Search</button>
+</form>
+<p class="text-muted">{{intcomma .Page.Count}} matching questions</p>
+<table class="table table-sm">
+  <thead>
+    <tr><th>Text</th><th>Displayed</th><th>Votes</th><th>Tweeted</th><th>Reddit</th></tr>
+  </thead>
+  <tbody>
+    {{range .Questions}}
+    <tr>
+      <td><a href="/admin/questions/{{.ID}}">{{.Text}}</a></td>
+      <td class="text-nowrap">{{if displayed .Displayed}}{{isodate .Displayed}}{{else}}&mdash;{{end}}</td>
+      <td>{{.Votes}}</td>
+      <td>{{if .Tweeted}}yes{{end}}</td>
+      <td>{{if .Submitted}}yes{{end}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{template "pagination" .Page}}
+{{end}}

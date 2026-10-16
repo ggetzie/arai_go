@@ -1,0 +1,15 @@
+{{define "content"}}
+<h2 class="mb-3">About entries</h2>
+<p class="text-muted">"intro" is shown on the home page and "about" on the About page.</p>
+<ul class="list-group mb-3" style="max-width: 480px;">
+  {{range .Entries}}
+  <li class="list-group-item d-flex justify-content-between">
+    <a href="/admin/about/{{.ID}}">{{.Title}}</a>
+    <span class="text-muted">{{if .Published}}published{{else}}unpublished{{end}}</span>
+  </li>
+  {{else}}
+  <li class="list-group-item">No entries yet.</li>
+  {{end}}
+</ul>
+<a class="btn btn-secondary" href="/admin/about/new">New entry</a>
+{{end}}

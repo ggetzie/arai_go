@@ -1,0 +1,24 @@
+{{define "content"}}
+<p><a href="/admin/about/">&laquo; All about entries</a></p>
+<h2 class="mb-3">{{if .New}}New about entry{{else}}Edit "{{.Entry.Title}}"{{end}}</h2>
+{{with .Error}}<div class="alert alert-danger">{{.}}</div>{{end}}
+<form method="post" action="/admin/about/{{if .New}}new{{else}}{{.Entry.ID}}{{end}}">
+  <div class="form-group">
+    <label for="title">Title</label>
+    <input class="form-control" id="title" name="title" value="{{.Entry.Title}}" maxlength="30" required style="max-width: 320px;">
+  </div>
+  <div class="form-group">
+    <label for="text">Text (Markdown)</label>
+    <textarea class="form-control" id="text" name="text" rows="16">{{.Entry.Text}}</textarea>
+  </div>
+  <div class="form-group form-check">
+    <input class="form-check-input" type="checkbox" id="published" name="published"{{if .Entry.Published}} checked{{end}}>
+    <label class="form-check-label" for="published">Published</label>
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+</form>
+{{if .Entry.HTML}}
+<h4 class="mt-5">Current rendered HTML</h4>
+<div class="border p-3 mb-5">{{.Entry.HTML | safeHTML}}</div>
+{{end}}
+{{end}}

@@ -1,0 +1,26 @@
+{{define "content"}}
+<h2>Questions On Deck</h2>
+<p>
+    {{intcomma .Page.Count}} questions have been upvoted but have not yet been tweeted.
+</p>
+
+<ul class="list-group m-auto">
+    {{range .Questions}}
+    <li class="list-group-item">
+      <p>
+        {{.Text}}
+      </p>
+      <p class="m-0">
+        {{longdate .Displayed}}
+      </p>
+      <p class="m-0">
+        Votes: {{.Votes}}
+      </p>
+    </li>
+    {{end}}
+</ul>
+
+<div class="mt-3">
+    {{template "pagination" .Page}}
+</div>
+{{end}}

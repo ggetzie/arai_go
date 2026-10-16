@@ -1,0 +1,11 @@
+[Unit]
+Description=Choose today's askredditbut.ai questions just after midnight UTC
+
+[Timer]
+OnCalendar=*-*-* 00:01:00 UTC
+# Run at boot if the server was down at 00:01; `arai select` is a no-op when
+# today already has its questions.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

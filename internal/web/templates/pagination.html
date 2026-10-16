@@ -1,0 +1,30 @@
+{{define "pagination"}}{{if gt .NumPages 1}}
+<nav aria-label="page navigation">
+    <ul class="pagination pagination-sm justify-content-center">
+        {{if .HasPrevious}}
+        <li class="page-item">
+            <a class="page-link" href="{{.URL 1}}">&laquo; first</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="{{.URL .Previous}}">previous</a>
+        </li>
+        {{end}}
+        {{range .Window}}
+        <li class="page-item{{if eq . $.Number}} active{{end}}">
+            <a class="page-link" href="{{$.URL .}}">
+                {{.}}
+                {{if eq . $.Number}}of {{$.NumPages}}{{end}}
+            </a>
+        </li>
+        {{end}}
+        {{if .HasNext}}
+        <li class="page-item">
+            <a class="page-link" href="{{.URL .Next}}">next</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="{{.URL .NumPages}}">last &raquo;</a>
+        </li>
+        {{end}}
+    </ul>
+</nav>
+{{end}}{{end}}

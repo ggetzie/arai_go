@@ -1,0 +1,42 @@
+{{define "content"}}
+<a href="https://reddit.com/r/askredditbutai">
+  <img class="img-fluid mt-1 mb-5" src="/static/images/Max_banner_crop_narrow_integrated.png" alt="AskReddit But AI" />
+</a>
+
+<div id="intro" class="mb-5">{{.Intro}}</div>
+
+<div id="question_tweet" class="row pl-3">
+  <div id="questions" class="col-md-8">
+    {{range .Questions}}
+    <div id="question{{.ID}}" class="row border-top border-dark neutral pb-2 pt-2" style="max-width: 80%;">
+      <div class="col-auto align-middle arrow-col">
+        <form id="up{{.ID}}" class="form-inline upvote vote-form" action="/vote/" method="POST">
+          <input type="hidden" value="{{.ID}}" name="question_id" />
+          <input type="hidden" value="up" name="direction" />
+          <input type="submit" value="" aria-label="Upvote" />
+        </form>
+        <form id="down{{.ID}}" class="form-inline downvote vote-form" action="/vote/" method="POST">
+          <input type="hidden" value="{{.ID}}" name="question_id" />
+          <input type="hidden" value="down" name="direction" />
+          <input type="submit" value="" aria-label="Downvote" />
+        </form>
+      </div>
+      <div class="col question-text">
+        <p class="my-auto">{{.Text}}</p>
+      </div>
+    </div>
+    {{else}}
+    <div class="row mb-3">
+      <div class="col">No questions found for this date</div>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{template "pagination" .Page}}
+{{end}}
+
+{{define "extra_js"}}
+<script id="vote-states" type="application/json">{{.VoteStates}}</script>
+<script src="/static/js/project.js"></script>
+{{end}}
