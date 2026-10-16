@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -185,7 +186,9 @@ func hashPassword() error {
 		pw = p1
 	} else {
 		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil && line == "" {
+		if errors.Is(err, io.EOF) && line == "" {
+			return errors.New("no password given on stdin (run from a terminal, or pipe the password in)")
+		} else if err != nil && line == "" {
 			return err
 		}
 		pw = []byte(strings.TrimRight(line, "\r\n"))
